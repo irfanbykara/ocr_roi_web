@@ -1,0 +1,218 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+<script class="jsbin" src="https://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+
+<div class="file-upload">
+
+  <div class="image-upload-wrap">
+    <input class="file-upload-input" type='file' onchange="readURL(this);" accept="image/*" />
+    <div class="drag-text">
+      <h3>Drag and drop a file or select add Image</h3>
+    </div>
+  </div>
+
+  <div class="file-upload-content">
+    <div class="image-canvas-container">
+      <canvas id="image-canvas" width="0" height="0"  ></canvas>
+    </div>
+
+          <button id="saveButton" class="btn-success">Convert to Text</button>
+
+    <div class="image-title-wrap">
+      <button type="button" onclick="removeUpload()" class="remove-image">Remove <span class="image-title">Uploaded Image</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+let myImage = new Image();
+
+        const canvas = document.getElementById('image-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let rectangles = [];
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const rect = {
+                startX: e.clientX - canvas.getBoundingClientRect().left,
+                startY: e.clientY - canvas.getBoundingClientRect().top,
+                endX: 0,
+                endY: 0,
+            };
+            rectangles.push(rect);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const rect = rectangles[rectangles.length - 1];
+            rect.endX = e.clientX - canvas.getBoundingClientRect().left;
+            rect.endY = e.clientY - canvas.getBoundingClientRect().top;
+            drawRectangles();
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+
+        function readURL(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                reader.onload = function(e) {
+                    $('.image-upload-wrap').hide();
+                    $('.file-upload-content').show();
+
+                    var imageCanvas = document.getElementById('image-canvas');
+                    var ctx = imageCanvas.getContext('2d');
+
+                    var img = new Image();
+
+                    img.onload = function() {
+                        // Set the canvas size to match the image size
+                        imageCanvas.width = img.width;
+                        imageCanvas.height = img.height;
+
+                        // Draw the image on the canvas as the background
+                        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+                        $('.image-title').html(input.files[0].name);
+                    };
+
+                    img.src = e.target.result;
+                    myImage = img;
+                };
+
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                removeUpload();
+            }
+        }
+
+        function removeUpload() {
+        rectangles = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            $('.file-upload-input').replaceWith($('.file-upload-input').clone());
+            $('.file-upload-content').hide();
+            $('.image-upload-wrap').show();
+        }
+
+        function drawRectangles() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Redraw the image as the background
+            var imageCanvas = document.getElementById('image-canvas');
+
+            ctx.drawImage(myImage, 0, 0, canvas.width, canvas.height);
+
+            rectangles.forEach((rect) => {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(
+                    rect.startX,
+                    rect.startY,
+                    rect.endX - rect.startX,
+                    rect.endY - rect.startY
+                );
+            });
+        }
+
+        document.getElementById('saveButton').addEventListener('click', () => {
+            // Send rectangles data to the Django backend via an AJAX request
+            sendRectangles(rectangles);
+        });
+
+        var isDrawingMode = false; // Initially, we're not in drawing mode
+        var rectangleColor = '#FF0000'; // Default rectangle color
+
+
+    // Event listener for mouse down to start drawing
+$('#image-canvas').mousedown(function(e) {
+    if (isDrawingMode) {
+        var ctx = this.getContext('2d');
+        ctx.strokeStyle = rectangleColor;
+        ctx.lineWidth = 2; // Adjust line width as needed
+
+        var startX = e.pageX - this.offsetLeft;
+        var startY = e.pageY - this.offsetTop;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+
+        $(this).mousemove(function(e) {
+            if (isDrawingMode && isImageLoaded) { // Check if the image is loaded
+                var endX = e.pageX - this.offsetLeft;
+                var endY = e.pageY - this.offsetTop;
+
+                ctx.clearRect(0, 0, this.width, this.height); // Clear the canvas
+                ctx.drawImage(img, 0, 0, this.width, this.height); // Redraw the image as the background
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.rect(startX, startY, endX - startX, endY - startY);
+                ctx.stroke();
+            }
+        });
+
+        $(this).mouseup(function() {
+            if (isDrawingMode) {
+                $(this).off('mousemove');
+                $(this).off('mouseup');
+            }
+        });
+    }
+});
+
+
+
+            document.getElementById('saveButton').addEventListener('click', () => {
+        // Send rectangles data to the Django backend via an AJAX request
+        sendRectangles(rectangles);
+    });
+
+function sendRectangles(rectangles) {
+    $.ajax({
+        url: '/convert_to_text/',
+        type: 'POST',
+        data: {
+            'rectangles': JSON.stringify(rectangles), // Convert rectangles to JSON string
+            csrfmiddlewaretoken: '{{ csrf_token }}',
+        },
+        dataType: 'json', // Specify the expected response data type
+        success: function(response) {
+            if (response.success) {
+                alert('Data sent successfully.');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error(error);
+            alert('Error occurred while sending data.');
+        },
+    });
+}
+img.onload = function() {
+    // Set the canvas size to match the image size
+    imageCanvas.width = img.width;
+    imageCanvas.height = img.height;
+
+    // Draw the image on the canvas as the background
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+
+    $('.image-title').html(input.files[0].name);
+
+    isImageLoaded = true;
+    // You may want to clear any existing rectangles here if needed
+    rectangles = [];
+};
+
+
+
+</script>
+
+{% endblock %}
